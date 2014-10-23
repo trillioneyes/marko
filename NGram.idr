@@ -20,6 +20,13 @@ path : Eq kt => List kt -> (f : Type -> Type) -> Functor f ->
 path [] f inst mod t = mod t
 path (p::ps) f inst mod t = subtrie p f inst (path ps f inst mod) t
 
+subtries : (f:Type -> Type) -> Functor f ->
+           (List (kt, Trie kt vt) -> f (List (kt, Trie kt vt))) ->
+           Trie kt vt -> f (Trie kt vt)
+subtries F inst f (Branch list) = map Branch (f list)
+-- this doesn't really obey the lens laws :(
+subtries F inst f _ = map Branch (f [])
+
 get : ((f : Type -> Type) -> Functor f -> (a -> f a) -> b -> f b) -> b -> a
 get {a} l = l (const a) %instance id
 
@@ -57,3 +64,15 @@ ngrams n [] = emptyFreq {n}
 ngrams n (x::xs) with (tryTake n (x::xs))
   | Nothing = emptyFreq {n}
   | Just ngram = foundOne ngram (ngrams n xs)
+
+probs : Frequencies n a -> Trie a (Nat, Nat)
+probs {n} t = rec t 0 where
+  rec : Frequencies n a -> Nat -> Trie a (Nat, Nat)
+  rec (Leaf freq) acc = Leaf (freq, acc)
+  rec Empty _ = Empty
+  rec (Branch xs) acc = Branch (map (\(key, x) => (key, rec x leafSum)) xs)
+    where count : (b, Trie a Nat) -> Nat
+          leafSum : Nat
+          leafSum = sum (map count xs)
+          count (_, Leaf x) = x
+          count _ = 0
